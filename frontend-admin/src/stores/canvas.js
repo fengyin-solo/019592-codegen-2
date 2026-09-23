@@ -2,6 +2,17 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 const MM_TO_DOT = 8
+const USAGE_STORAGE_KEY = 'label-editor:element-usage'
+
+function loadUsageCounts() {
+  try {
+    const raw = localStorage.getItem(USAGE_STORAGE_KEY)
+    const parsed = raw ? JSON.parse(raw) : null
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
 
 export const useCanvasStore = defineStore('canvas', () => {
   const canvasWidth = ref(80)
@@ -10,6 +21,8 @@ export const useCanvasStore = defineStore('canvas', () => {
   const elements = ref([])
   const selectedElementId = ref(null)
   const selectedElementIds = ref([])
+  // 各类型元件的累计使用次数，重新进入页面后仍保留
+  const usageCounts = ref(loadUsageCounts())
   let elementIdCounter = 0
 
   const canvasPixelWidth = computed(() => canvasWidth.value * MM_TO_DOT)
@@ -33,6 +46,24 @@ export const useCanvasStore = defineStore('canvas', () => {
     scale.value = Math.max(0.25, Math.min(4, newScale))
   }
 
+  function persistUsageCounts() {
+    try {
+      localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify(usageCounts.value))
+    } catch {
+      // 存储不可用时忽略，不影响编辑
+    }
+  }
+
+  function recordElementUsage(type) {
+    if (!type) return
+    usageCounts.value = { ...usageCounts.value, [type]: (usageCounts.value[type] || 0) + 1 }
+    persistUsageCounts()
+  }
+
+  function getUsageCount(type) {
+    return usageCounts.value[type] || 0
+  }
+
   function addElement(element) {
     const id = `element_${++elementIdCounter}`
     const newElement = {
@@ -47,6 +78,7 @@ export const useCanvasStore = defineStore('canvas', () => {
       visible: true
     }
     elements.value.push(newElement)
+    recordElementUsage(element.type)
     selectElement(id)
     return id
   }
@@ -169,6 +201,7 @@ export const useCanvasStore = defineStore('canvas', () => {
     elements,
     selectedElementId,
     selectedElementIds,
+    usageCounts,
     canvasPixelWidth,
     canvasPixelHeight,
     selectedElement,
@@ -176,6 +209,7 @@ export const useCanvasStore = defineStore('canvas', () => {
     setCanvasSize,
     setScale,
     addElement,
+    getUsageCount,
     updateElement,
     deleteElement,
     selectElement,
