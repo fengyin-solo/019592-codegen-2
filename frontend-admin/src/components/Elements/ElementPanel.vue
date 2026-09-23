@@ -1,23 +1,35 @@
 <template>
   <div class="element-panel card">
     <div class="section-title">元件库</div>
-    <div class="element-list">
-      <div 
-        v-for="item in elementTypes" 
-        :key="item.type"
-        class="element-item"
-        draggable="true"
-        @dragstart="handleDragStart($event, item)"
-      >
-        <el-icon :size="24"><component :is="item.icon" /></el-icon>
-        <span>{{ item.label }}</span>
-      </div>
+    <div class="element-filter">
+      <el-input
+        v-model="filterKeyword"
+        size="small"
+        clearable
+        placeholder="按名称过滤元件"
+        :prefix-icon="Search"
+      />
     </div>
-    
+    <div class="element-list">
+      <template v-if="filteredElementTypes.length > 0">
+        <div
+          v-for="item in filteredElementTypes"
+          :key="item.type"
+          class="element-item"
+          draggable="true"
+          @dragstart="handleDragStart($event, item)"
+        >
+          <el-icon :size="24"><component :is="item.icon" /></el-icon>
+          <span>{{ item.label }}</span>
+        </div>
+      </template>
+      <el-empty v-else class="filter-empty" description="没有匹配的元件" :image-size="60" />
+    </div>
+
     <div class="section-title">图层列表</div>
     <div class="layer-list">
-      <div 
-        v-for="element in reversedElements" 
+      <div
+        v-for="element in sortedLayerElements"
         :key="element.id"
         class="layer-item"
         :class="{ active: store.selectedElementId === element.id }"
@@ -39,7 +51,8 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
+import { Search } from '@element-plus/icons-vue'
 import { useCanvasStore } from '@/stores/canvas'
 
 const store = useCanvasStore()
@@ -55,7 +68,23 @@ const elementTypes = [
   { type: 'table', label: '表格', icon: 'Grid', defaultProps: { rows: 3, cols: 3, borderWidth: 1, borderColor: '#000000', cellFontSize: 12, cellFontFamily: 'Arial', cellFontColor: '#000000', cellTextAlign: 'center', cells: {} } }
 ]
 
-const reversedElements = computed(() => [...store.elements].reverse())
+const filterKeyword = ref('')
+
+const usageCount = (type) => store.elementUsage[type] || 0
+
+// 按名称过滤，再按使用次数排序（次数相同保持原有声明顺序）
+const filteredElementTypes = computed(() => {
+  const keyword = filterKeyword.value.trim().toLowerCase()
+  const matched = keyword
+    ? elementTypes.filter(item => item.label.toLowerCase().includes(keyword) || item.type.toLowerCase().includes(keyword))
+    : elementTypes
+  return [...matched].sort((a, b) => usageCount(b.type) - usageCount(a.type))
+})
+
+// 图层顺序跟随元件常用程度，同类型保持新建在前
+const sortedLayerElements = computed(() =>
+  [...store.elements].reverse().sort((a, b) => usageCount(b.type) - usageCount(a.type))
+)
 
 const handleDragStart = (e, item) => {
   e.dataTransfer.effectAllowed = 'copy'
@@ -81,11 +110,20 @@ const getElementName = (el) => {
   overflow: hidden;
 }
 
+.element-filter {
+  padding: 8px 12px 0;
+}
+
 .element-list {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 8px;
   padding: 12px;
+}
+
+.filter-empty {
+  grid-column: 1 / -1;
+  padding: 8px 0;
 }
 
 .element-item {

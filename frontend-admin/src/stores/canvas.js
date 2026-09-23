@@ -2,6 +2,15 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 const MM_TO_DOT = 8
+const ELEMENT_USAGE_KEY = 'label-editor-element-usage'
+
+function loadElementUsage() {
+  try {
+    return JSON.parse(localStorage.getItem(ELEMENT_USAGE_KEY)) || {}
+  } catch {
+    return {}
+  }
+}
 
 export const useCanvasStore = defineStore('canvas', () => {
   const canvasWidth = ref(80)
@@ -10,6 +19,7 @@ export const useCanvasStore = defineStore('canvas', () => {
   const elements = ref([])
   const selectedElementId = ref(null)
   const selectedElementIds = ref([])
+  const elementUsage = ref(loadElementUsage())
   let elementIdCounter = 0
 
   const canvasPixelWidth = computed(() => canvasWidth.value * MM_TO_DOT)
@@ -33,6 +43,13 @@ export const useCanvasStore = defineStore('canvas', () => {
     scale.value = Math.max(0.25, Math.min(4, newScale))
   }
 
+  // 记录元件使用次数并持久化，隐藏/移除元件不影响该统计
+  function recordElementUsage(type) {
+    if (!type) return
+    elementUsage.value = { ...elementUsage.value, [type]: (elementUsage.value[type] || 0) + 1 }
+    localStorage.setItem(ELEMENT_USAGE_KEY, JSON.stringify(elementUsage.value))
+  }
+
   function addElement(element) {
     const id = `element_${++elementIdCounter}`
     const newElement = {
@@ -47,6 +64,7 @@ export const useCanvasStore = defineStore('canvas', () => {
       visible: true
     }
     elements.value.push(newElement)
+    recordElementUsage(element.type)
     selectElement(id)
     return id
   }
@@ -169,12 +187,14 @@ export const useCanvasStore = defineStore('canvas', () => {
     elements,
     selectedElementId,
     selectedElementIds,
+    elementUsage,
     canvasPixelWidth,
     canvasPixelHeight,
     selectedElement,
     selectedElements,
     setCanvasSize,
     setScale,
+    recordElementUsage,
     addElement,
     updateElement,
     deleteElement,
